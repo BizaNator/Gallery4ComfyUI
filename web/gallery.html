@@ -425,6 +425,10 @@
                             <label class="text-sm text-gray-300">Show File Paths</label>
                             <input type="checkbox" id="showFilePathsToggle" checked class="w-4 h-4 text-violet-600 bg-gray-600 border-gray-500 rounded focus:ring-violet-500">
                         </div>
+                        <div class="flex items-center justify-between">
+                            <label class="text-sm text-gray-300">Show Full System Paths</label>
+                            <input type="checkbox" id="showFullPathsToggle" checked class="w-4 h-4 text-violet-600 bg-gray-600 border-gray-500 rounded focus:ring-violet-500">
+                        </div>
                     </div>
                 </div>
 
@@ -1405,7 +1409,21 @@
 
             async loadImageMetadata(imageUrl, container) {
                 try {
-                    // First try to get linked prompt from database
+                    // First try to get the absolute file path from the X-File-Path header
+                    let absoluteFilePath = null;
+                    try {
+                        // Make a HEAD request to get the headers without downloading the entire file
+                        const headResponse = await fetch(imageUrl, { method: 'HEAD' });
+                        if (headResponse.ok) {
+                            // Check for the X-File-Path header that contains absolute path
+                            absoluteFilePath = headResponse.headers.get('X-File-Path');
+                            console.log('Got absolute file path from header:', absoluteFilePath);
+                        }
+                    } catch (pathError) {
+                        console.warn('Failed to get absolute file path:', pathError);
+                    }
+                    
+                    // Next, try to get linked prompt from database
                     let databasePrompt = null;
                     try {
                         // Extract relative path from the URL for the API call
@@ -1438,6 +1456,7 @@
                             seed: 'Unknown',
                             workflow: databasePrompt.workflow_data,
                             imagePath: imageUrl,
+                            absoluteFilePath: absoluteFilePath, // Add absolute file path from header
                             source: 'database', // Mark this as coming from database
                             promptId: databasePrompt.prompt_id,
                             category: databasePrompt.category,
@@ -1468,6 +1487,7 @@
                         metadata = await this.extractImageMetadata(imageUrl);
                         if (metadata) {
                             metadata.source = 'png'; // Mark this as coming from PNG
+                            metadata.absoluteFilePath = absoluteFilePath; // Add absolute file path from header
                         }
                     }
                     
@@ -1500,9 +1520,24 @@
                     <!-- File Path -->
                     <div class="space-y-2">
                         <h2 class="text-sm font-medium text-gray-300">File Path</h2>
-                        <div class="text-xs text-gray-400 font-mono bg-gray-800 p-2 rounded break-all cursor-pointer hover:bg-gray-700" data-copy-path title="Click to copy">
-                            ${metadata.imagePath || 'Unknown'}
+                        <div class="text-xs text-gray-400 font-mono bg-gray-800 p-2 rounded break-all cursor-pointer hover:bg-gray-700" data-copy-path title="Click to copy path">
+                            ${this.getSettings().showFullPaths && metadata.absoluteFilePath ? 
+                              metadata.absoluteFilePath : 
+                              metadata.imagePath || 'Unknown'}
                         </div>
+                        ${metadata.absoluteFilePath ? 
+                            `<div class="text-xs text-gray-500 mt-1">
+                                 <span class="bg-${this.getSettings().showFullPaths ? 'green' : 'gray'}-800/30 text-${this.getSettings().showFullPaths ? 'green' : 'gray'}-300 px-1 py-0.5 rounded text-[10px]">
+                                     ${this.getSettings().showFullPaths ? 'FULL PATH' : 'FULL PATH AVAILABLE'}
+                                 </span> 
+                                 ${this.getSettings().showFullPaths ? 
+                                   'Absolute file system path' : 
+                                   'Showing server URL (switch in Settings)'}
+                             </div>` : 
+                            `<div class="text-xs text-gray-500 mt-1">
+                                 <span class="bg-yellow-800/30 text-yellow-300 px-1 py-0.5 rounded text-[10px]">SERVER URL</span> Relative server path
+                             </div>`
+                        }
                     </div>
 
                     <!-- Resources used -->
@@ -1683,7 +1718,12 @@
                 if (pathEl) {
                     pathEl.addEventListener('click', () => {
                         if (this.currentMetadata) {
-                            this.copyToClipboard(this.currentMetadata.imagePath);
+                            // Choose based on settings
+                            const settings = this.getSettings();
+                            const pathToCopy = settings.showFullPaths && this.currentMetadata.absoluteFilePath ? 
+                                this.currentMetadata.absoluteFilePath : 
+                                this.currentMetadata.imagePath;
+                            this.copyToClipboard(pathToCopy);
                         }
                     });
                 }
@@ -1764,7 +1804,14 @@
             copyAllMetadata() {
                 if (!this.currentMetadata) return;
                 
-                const allData = `Checkpoint: ${this.currentMetadata.checkpoint || 'Unknown'}
+                // Choose path based on settings
+                const settings = this.getSettings();
+                const pathToShow = settings.showFullPaths && this.currentMetadata.absoluteFilePath ? 
+                    this.currentMetadata.absoluteFilePath : 
+                    this.currentMetadata.imagePath;
+                
+                const allData = `File Path: ${pathToShow || 'Unknown'}
+Checkpoint: ${this.currentMetadata.checkpoint || 'Unknown'}
 Positive Prompt: ${this.currentMetadata.positivePrompt}
 Negative Prompt: ${this.currentMetadata.negativePrompt}
 Steps: ${this.currentMetadata.steps || 'Unknown'}
@@ -1839,11 +1886,25 @@ Seed: ${this.currentMetadata.seed || 'Unknown'}`;
 
             formatImageCaption(image) {
                 const date = new Date(image.modified_time * 1000);
+                // Include full path if available (note that this will only be present in the metadata after we click)
                 return `${image.filename} | ${this.formatFileSize(image.size)} | ${date.toLocaleString()}`;
             }
 
             async extractImageMetadata(imageUrl) {
                 try {
+                    // Try to get the absolute file path from the X-File-Path header
+                    let absoluteFilePath = null;
+                    try {
+                        // Make a HEAD request to get the headers without downloading the entire file
+                        const headResponse = await fetch(imageUrl, { method: 'HEAD' });
+                        if (headResponse.ok) {
+                            absoluteFilePath = headResponse.headers.get('X-File-Path');
+                            console.log('Got absolute file path from header:', absoluteFilePath);
+                        }
+                    } catch (pathError) {
+                        console.warn('Failed to get absolute file path:', pathError);
+                    }
+                    
                     // Fetch the image as an array buffer
                     const response = await fetch(imageUrl);
                     const arrayBuffer = await response.arrayBuffer();
@@ -1852,7 +1913,13 @@ Seed: ${this.currentMetadata.seed || 'Unknown'}`;
                     const metadata = await this.parsePNGMetadata(arrayBuffer);
                     const comfyData = this.extractComfyUIData(metadata);
                     
-                    return this.parseWorkflowData(comfyData, imageUrl);
+                    // Parse workflow data and add the absolute file path
+                    const result = this.parseWorkflowData(comfyData, imageUrl);
+                    if (result && absoluteFilePath) {
+                        result.absoluteFilePath = absoluteFilePath;
+                    }
+                    
+                    return result;
                 } catch (error) {
                     console.error('Error extracting metadata:', error);
                     return null;
@@ -2131,7 +2198,8 @@ Seed: ${this.currentMetadata.seed || 'Unknown'}`;
                     sampler,
                     seed,
                     workflow: comfyData.workflow,
-                    imagePath
+                    imagePath,
+                    absoluteFilePath: null // Will be set by extractImageMetadata if available
                 };
             }
 
@@ -2157,6 +2225,7 @@ Seed: ${this.currentMetadata.seed || 'Unknown'}`;
                 document.getElementById('autoLoadMetadataToggle').checked = settings.autoLoadMetadata;
                 document.getElementById('cacheMetadataToggle').checked = settings.cacheMetadata;
                 document.getElementById('showFilePathsToggle').checked = settings.showFilePaths;
+                document.getElementById('showFullPathsToggle').checked = settings.showFullPaths;
                 document.getElementById('showImageInfoToggle').checked = settings.showImageInfo;
                 document.getElementById('debugModeToggle').checked = settings.debugMode;
                 document.getElementById('checkThumbnailsAtStartup').checked = settings.checkThumbnailsAtStartup;
@@ -2190,6 +2259,7 @@ Seed: ${this.currentMetadata.seed || 'Unknown'}`;
                     autoLoadMetadata: true,
                     cacheMetadata: true,
                     showFilePaths: true,
+                    showFullPaths: true,   // New setting for absolute vs server paths
                     debugMode: false,
                     apiTimeout: 30,
                     thumbnailsGenerated: false,
@@ -2223,6 +2293,7 @@ Seed: ${this.currentMetadata.seed || 'Unknown'}`;
                     autoLoadMetadata: document.getElementById('autoLoadMetadataToggle').checked,
                     cacheMetadata: document.getElementById('cacheMetadataToggle').checked,
                     showFilePaths: document.getElementById('showFilePathsToggle').checked,
+                    showFullPaths: document.getElementById('showFullPathsToggle').checked,
                     debugMode: document.getElementById('debugModeToggle').checked,
                     apiTimeout: parseInt(document.getElementById('apiTimeoutInput').value),
                     thumbnailsGenerated: this.getSettings().thumbnailsGenerated, // Preserve this

@@ -1927,14 +1927,15 @@ class PromptManagerAPI:
                     images.append({
                         'id': str(hash(str(media_path))),  # Simple hash for ID
                         'filename': media_path.name,
-                        'path': str(media_path),
+                        'path': str(media_path),           # Full filesystem path
+                        'full_path': str(media_path),      # Additional explicit full path
                         'relative_path': str(rel_path),
                         'url': f'/prompt_manager/images/serve/{rel_path.as_posix()}',  # Use forward slashes for URLs
-                        'thumbnail_url': thumbnail_url,  # Thumbnail URL if exists
+                        'thumbnail_url': thumbnail_url,    # Thumbnail URL if exists
                         'size': stat.st_size,
                         'modified_time': stat.st_mtime,
                         'extension': extension,
-                        'media_type': media_type,  # 'image' or 'video'
+                        'media_type': media_type,          # 'image' or 'video'
                         'is_video': is_video
                     })
                 except Exception as e:
@@ -2048,7 +2049,9 @@ class PromptManagerAPI:
                 content_type=content_type,
                 headers={
                     'Cache-Control': 'public, max-age=3600',
-                    'Content-Length': str(len(file_data))
+                    'Content-Length': str(len(file_data)),
+                    'X-File-Path': str(image_path),  # Add absolute file path in a custom header
+                    'Access-Control-Expose-Headers': 'X-File-Path'  # Allow client to read the custom header
                 }
             )
             
