@@ -1222,14 +1222,26 @@ class PromptManagerAPI:
     async def get_settings(self, request):
         """Get current settings."""
         try:
-            from .config import PromptManagerConfig
+            from .config import PromptManagerConfig, GalleryConfig
+            
+            # Gather directories from the current config
+            monitoring_directories = GalleryConfig.MONITORING_DIRECTORIES if hasattr(GalleryConfig, 'MONITORING_DIRECTORIES') else []
+            
+            # If no directories are configured, use the auto-detected ones
+            if not monitoring_directories:
+                output_dir = self._find_comfyui_output_dir()
+                if output_dir:
+                    monitoring_directories = [output_dir]
             
             # Return actual configuration settings
             return web.json_response({
                 "success": True, 
                 "settings": {
                     "result_timeout": PromptManagerConfig.RESULT_TIMEOUT,
-                    "webui_display_mode": PromptManagerConfig.WEBUI_DISPLAY_MODE
+                    "webui_display_mode": PromptManagerConfig.WEBUI_DISPLAY_MODE,
+                    "monitoring_enabled": GalleryConfig.MONITORING_ENABLED,
+                    "monitoring_directories": monitoring_directories,
+                    "supported_extensions": GalleryConfig.SUPPORTED_EXTENSIONS
                 }
             })
         except Exception as e:
@@ -1242,12 +1254,61 @@ class PromptManagerAPI:
         """Save settings."""
         try:
             data = await request.json()
-            # For now, just acknowledge the save
-            # In the future, we could store this in database or config file
-            return web.json_response(
-                {"success": True, "message": "Settings saved successfully"}
-            )
+            from .config import PromptManagerConfig, GalleryConfig
+            import os
+            import json
+            
+            # Update PromptManagerConfig settings
+            if 'result_timeout' in data:
+                PromptManagerConfig.RESULT_TIMEOUT = data['result_timeout']
+            
+            if 'webui_display_mode' in data:
+                PromptManagerConfig.WEBUI_DISPLAY_MODE = data['webui_display_mode']
+                
+            # Update GalleryConfig settings
+            if 'monitoring_enabled' in data:
+                GalleryConfig.MONITORING_ENABLED = data['monitoring_enabled']
+                
+            if 'monitoring_directories' in data:
+                # Ensure it's a list and all directories exist
+                directories = data['monitoring_directories']
+                if isinstance(directories, list):
+                    # Filter out empty strings and non-existent paths
+                    valid_dirs = [d for d in directories if d and os.path.exists(d)]
+                    if valid_dirs:
+                        GalleryConfig.MONITORING_DIRECTORIES = valid_dirs
+                    else:
+                        # If no valid directories, leave it as an empty list to enable auto-detection
+                        GalleryConfig.MONITORING_DIRECTORIES = []
+            
+            # Save the updated configuration to a file
+            try:
+                config_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                config_file = os.path.join(config_dir, 'config.json')
+                
+                # Get current configuration
+                config = PromptManagerConfig.get_config()
+                
+                # Save to file
+                with open(config_file, 'w') as f:
+                    json.dump(config, f, indent=2)
+                
+                self.logger.info(f"Settings saved to {config_file}")
+            except Exception as save_error:
+                self.logger.error(f"Failed to save config file: {save_error}")
+            
+            return web.json_response({
+                "success": True, 
+                "message": "Settings saved successfully",
+                "settings": {
+                    "result_timeout": PromptManagerConfig.RESULT_TIMEOUT,
+                    "webui_display_mode": PromptManagerConfig.WEBUI_DISPLAY_MODE,
+                    "monitoring_enabled": GalleryConfig.MONITORING_ENABLED,
+                    "monitoring_directories": GalleryConfig.MONITORING_DIRECTORIES
+                }
+            })
         except Exception as e:
+            self.logger.error(f"Failed to save settings: {e}", exc_info=True)
             return web.json_response(
                 {"success": False, "error": f"Failed to save settings: {str(e)}"},
                 status=500,
@@ -2587,76 +2648,99 @@ class PromptManagerAPI:
             import shutil
             from pathlib import Path
             
-            # Find ComfyUI output directory
-            output_dir = self._find_comfyui_output_dir()
-            if not output_dir:
+            # Get configured directories or auto-detect
+            try:
+                # Try to import GalleryConfig to get configured directories
+                try:
+                    from .config import GalleryConfig
+                except ImportError:
+                    import sys
+                    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    from py.config import GalleryConfig
+                
+                directories_to_check = []
+                
+                # Check for configured monitoring directories
+                if hasattr(GalleryConfig, 'MONITORING_DIRECTORIES') and GalleryConfig.MONITORING_DIRECTORIES:
+                    for directory in GalleryConfig.MONITORING_DIRECTORIES:
+                        if directory and os.path.exists(directory) and os.path.isdir(directory):
+                            directories_to_check.append(directory)
+                            self.logger.debug(f"Will check configured directory for thumbnails: {directory}")
+                
+                # Fallback to auto-detection if no valid configured directories
+                if not directories_to_check:
+                    output_dir = self._find_comfyui_output_dir()
+                    if output_dir:
+                        directories_to_check.append(output_dir)
+                        self.logger.debug(f"Will check auto-detected directory for thumbnails: {output_dir}")
+                
+            except Exception as e:
+                self.logger.warning(f"Error getting configured directories, falling back to auto-detection: {e}")
+                output_dir = self._find_comfyui_output_dir()
+                if output_dir:
+                    directories_to_check = [output_dir]
+            
+            if not directories_to_check:
                 return web.json_response({
                     'success': False,
-                    'error': 'ComfyUI output directory not found'
+                    'error': 'No valid directories found to check for thumbnails'
                 }, status=404)
             
-            output_path = Path(output_dir)
-            thumbnails_dir = output_path / 'thumbnails'
+            # Find all thumbnail directories in configured paths
+            thumbnail_dirs = []
+            for dir_path in directories_to_check:
+                output_path = Path(dir_path)
+                thumbnails_dir = output_path / 'thumbnails'
+                if thumbnails_dir.exists() and thumbnails_dir.is_dir():
+                    thumbnail_dirs.append(thumbnails_dir)
             
-            # SAFETY: Only operate within our thumbnails directory
-            if not thumbnails_dir.exists():
+            # SAFETY: Only operate if we found thumbnail directories
+            if not thumbnail_dirs:
                 return web.json_response({
                     'success': True,
-                    'message': 'No thumbnails directory found - nothing to clear',
+                    'message': 'No thumbnails directories found - nothing to clear',
                     'cleared_files': 0
                 })
-            
-            # SAFETY: Verify this is actually our thumbnails directory
-            try:
-                thumbnails_dir_resolved = thumbnails_dir.resolve()
-                output_path_resolved = output_path.resolve()
-                
-                # Ensure thumbnails dir is within output dir and named 'thumbnails'
-                if (not str(thumbnails_dir_resolved).startswith(str(output_path_resolved)) or
-                    thumbnails_dir.name != 'thumbnails'):
-                    self.logger.error(f"Safety check failed: thumbnails directory path invalid: {thumbnails_dir}")
-                    return web.json_response({
-                        'success': False,
-                        'error': 'Safety check failed: invalid thumbnails directory path'
-                    }, status=400)
-                    
-            except Exception as e:
-                self.logger.error(f"Path validation failed: {e}")
-                return web.json_response({
-                    'success': False,
-                    'error': 'Path validation failed'
-                }, status=500)
             
             # Count files before deletion
             cleared_count = 0
             cleared_size = 0
             
-            # SAFETY: Only delete files within thumbnails directory that match our naming pattern
-            for root, dirs, files in os.walk(thumbnails_dir):
-                for file in files:
-                    file_path = Path(root) / file
-                    
-                    # SAFETY: Additional check - only delete files with '_thumb' in name
-                    if '_thumb' in file.lower() and any(file.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.webp', '.gif']):
-                        try:
-                            file_size = file_path.stat().st_size
-                            file_path.unlink()  # Delete the file
-                            cleared_count += 1
-                            cleared_size += file_size
-                            self.logger.debug(f"Cleared thumbnail: {file_path}")
-                        except Exception as e:
-                            self.logger.warning(f"Failed to delete thumbnail {file_path}: {e}")
-            
-            # SAFETY: Remove empty directories within thumbnails folder (but not the main thumbnails dir)
-            try:
-                for root, dirs, files in os.walk(thumbnails_dir, topdown=False):
-                    if root != str(thumbnails_dir):  # Don't remove the main thumbnails directory
-                        try:
-                            Path(root).rmdir()  # Only removes if empty
-                        except OSError:
-                            pass  # Directory not empty, that's fine
-            except Exception as e:
-                self.logger.debug(f"Directory cleanup info: {e}")
+            # Process each thumbnail directory
+            for thumbnails_dir in thumbnail_dirs:
+                # SAFETY: Verify this is actually a thumbnails directory
+                if thumbnails_dir.name != 'thumbnails':
+                    self.logger.error(f"Safety check failed: thumbnails directory path invalid: {thumbnails_dir}")
+                    continue
+                
+                self.logger.info(f"Processing thumbnails in: {thumbnails_dir}")
+                
+                # SAFETY: Only delete files within thumbnails directory that match our naming pattern
+                for root, dirs, files in os.walk(thumbnails_dir):
+                    for file in files:
+                        file_path = Path(root) / file
+                        
+                        # SAFETY: Additional check - only delete files with '_thumb' in name
+                        if '_thumb' in file.lower() and any(file.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.webp', '.gif']):
+                            try:
+                                file_size = file_path.stat().st_size
+                                file_path.unlink()  # Delete the file
+                                cleared_count += 1
+                                cleared_size += file_size
+                                self.logger.debug(f"Cleared thumbnail: {file_path}")
+                            except Exception as e:
+                                self.logger.warning(f"Failed to delete thumbnail {file_path}: {e}")
+                
+                # SAFETY: Remove empty directories within thumbnails folder (but not the main thumbnails dir)
+                try:
+                    for root, dirs, files in os.walk(thumbnails_dir, topdown=False):
+                        if root != str(thumbnails_dir):  # Don't remove the main thumbnails directory
+                            try:
+                                Path(root).rmdir()  # Only removes if empty
+                            except OSError:
+                                pass  # Directory not empty, that's fine
+                except Exception as e:
+                    self.logger.debug(f"Directory cleanup info: {e}")
             
             # Convert size to human readable format
             def format_size(bytes_size):
@@ -3423,17 +3507,52 @@ class PromptManagerAPI:
                 # This is mainly important if scans are run during active generation, which is rare
                 self.logger.info("Starting scan (timer clearing not implemented yet)")
                 
-                # Find ComfyUI output directory
-                output_dir = self._find_comfyui_output_dir()
-                if not output_dir:
-                    self.logger.error("ComfyUI output directory not found")
-                    yield f"data: {json.dumps({'type': 'error', 'message': 'ComfyUI output directory not found'})}\n\n"
+                # Find configured directories or auto-detect
+                try:
+                    # Try to import GalleryConfig to get configured directories
+                    try:
+                        from .config import GalleryConfig
+                    except ImportError:
+                        import sys
+                        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                        from py.config import GalleryConfig
+                    
+                    directories_to_scan = []
+                    
+                    # Check for configured monitoring directories
+                    if hasattr(GalleryConfig, 'MONITORING_DIRECTORIES') and GalleryConfig.MONITORING_DIRECTORIES:
+                        for directory in GalleryConfig.MONITORING_DIRECTORIES:
+                            if directory and os.path.exists(directory) and os.path.isdir(directory):
+                                directories_to_scan.append(directory)
+                                self.logger.debug(f"Will scan configured directory: {directory}")
+                    
+                    # Fallback to auto-detection if no valid configured directories
+                    if not directories_to_scan:
+                        output_dir = self._find_comfyui_output_dir()
+                        if output_dir:
+                            directories_to_scan.append(output_dir)
+                            self.logger.debug(f"Will scan auto-detected directory: {output_dir}")
+                    
+                except Exception as e:
+                    self.logger.warning(f"Error getting configured directories, falling back to auto-detection: {e}")
+                    output_dir = self._find_comfyui_output_dir()
+                    if output_dir:
+                        directories_to_scan = [output_dir]
+                
+                if not directories_to_scan:
+                    self.logger.error("No valid directories found to scan")
+                    yield f"data: {json.dumps({'type': 'error', 'message': 'No valid directories found to scan'})}\n\n"
                     return
                 
-                yield f"data: {json.dumps({'type': 'progress', 'progress': 0, 'status': 'Scanning for PNG files...', 'processed': 0, 'found': 0})}\n\n"
+                yield f"data: {json.dumps({'type': 'progress', 'progress': 0, 'status': f'Scanning {len(directories_to_scan)} directories for PNG files...', 'processed': 0, 'found': 0})}\n\n"
                 
-                # Find all PNG files
-                png_files = list(Path(output_dir).rglob("*.png"))
+                # Find all PNG files in all directories
+                png_files = []
+                for dir_path in directories_to_scan:
+                    self.logger.debug(f"Scanning directory: {dir_path}")
+                    png_files.extend(list(Path(dir_path).rglob("*.png")))
+                    yield f"data: {json.dumps({'type': 'progress', 'progress': 2, 'status': f'Scanning {dir_path}...', 'processed': 0, 'found': len(png_files)})}\n\n"
+                
                 total_files = len(png_files)
                 
                 if total_files == 0:
@@ -3577,15 +3696,15 @@ class PromptManagerAPI:
     def _find_comfyui_output_dir(self):
         """Locate the ComfyUI output directory using multiple detection strategies.
         
-        Attempts to find the ComfyUI output directory by checking various
-        possible locations relative to the current file and common installation
-        patterns. Handles different ComfyUI installation types and structures.
+        First checks for configured directories in GalleryConfig, then falls back to
+        automatic detection methods if no valid directories are configured.
         
         Detection Strategy:
-        1. Look for 'output' directory in parent directories (up to 10 levels)
-        2. Check common ComfyUI installation patterns
-        3. Verify directory contains typical ComfyUI subdirectories
-        4. Return first valid match found
+        1. Check GalleryConfig.MONITORING_DIRECTORIES first
+        2. Look for 'output' directory in parent directories (up to 10 levels)
+        3. Check common ComfyUI installation patterns
+        4. Verify directory contains typical ComfyUI subdirectories
+        5. Return first valid match found
         
         Returns:
             str or None: Absolute path to ComfyUI output directory, or None
@@ -3600,6 +3719,26 @@ class PromptManagerAPI:
         """
         import os
         from pathlib import Path
+        
+        # Method 0: Check configured monitoring directories from settings first
+        try:
+            # Try relative and absolute imports to handle different module structures
+            try:
+                from .config import GalleryConfig
+            except ImportError:
+                import sys
+                sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                from py.config import GalleryConfig
+            
+            if hasattr(GalleryConfig, 'MONITORING_DIRECTORIES') and GalleryConfig.MONITORING_DIRECTORIES:
+                for directory in GalleryConfig.MONITORING_DIRECTORIES:
+                    if directory and os.path.exists(directory) and os.path.isdir(directory):
+                        self.logger.debug(f"Using configured output directory: {directory}")
+                        return directory
+                
+                self.logger.debug("Configured directories not found or invalid, falling back to auto-detection")
+        except (ImportError, Exception) as e:
+            self.logger.debug(f"Failed to get directories from config, falling back to auto-detection: {e}")
         
         current_file = Path(__file__).resolve()
         self.logger.debug(f"Starting ComfyUI output search from: {current_file}")

@@ -57,7 +57,9 @@ class GalleryConfig:
     
     Attributes:
         MONITORING_ENABLED (bool): Enable/disable automatic image monitoring
-        MONITORING_DIRECTORIES (List[str]): Directories to monitor for new images
+        MONITORING_DIRECTORIES (List[str]): List of directory paths to monitor for new images.
+            Can contain multiple paths for different output directories.
+            If empty, the system will attempt to auto-detect ComfyUI output directories.
         SUPPORTED_EXTENSIONS (List[str]): Image file extensions to process
         PROCESSING_DELAY (float): Delay in seconds before processing new files
         PROMPT_TIMEOUT (int): Seconds to keep prompt context active
@@ -74,7 +76,7 @@ class GalleryConfig:
     
     # Image monitoring settings
     MONITORING_ENABLED = True
-    MONITORING_DIRECTORIES = []  # Auto-detect if empty
+    MONITORING_DIRECTORIES = []  # List of directory paths to monitor; empty array triggers auto-detection
     SUPPORTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
     PROCESSING_DELAY = 2.0  # Seconds to wait before processing new files
     

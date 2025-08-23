@@ -1,0 +1,51 @@
+{
+  "database": {
+    "default_path": "prompts.db",
+    "enable_duplicate_detection": true,
+    "enable_auto_save": true
+  },
+  "web_ui": {
+    "result_timeout": 5,
+    "show_test_button": false,
+    "webui_display_mode": "newtab"
+  },
+  "performance": {
+    "max_search_results": 100,
+    "enable_fuzzy_search": false,
+    "auto_backup_interval": 24
+  },
+  "gallery": {
+    "monitoring": {
+      "enabled": true,
+      "directories": [
+        "A:\\Generations"
+      ],
+      "extensions": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".gif"
+      ],
+      "processing_delay": 2.0
+    },
+    "tracking": {
+      "prompt_timeout": 120,
+      "cleanup_interval": 300
+    },
+    "database": {
+      "auto_cleanup": true,
+      "max_image_age_days": 365
+    },
+    "web_interface": {
+      "images_per_page": 20,
+      "thumbnail_size": 256,
+      "enable_search": true,
+      "enable_metadata_view": true
+    },
+    "performance": {
+      "max_concurrent_processing": 3,
+      "metadata_extraction_timeout": 10
+    }
+  }
+}

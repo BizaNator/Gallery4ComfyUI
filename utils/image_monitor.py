@@ -283,9 +283,29 @@ class ImageMonitor:
             self.logger.warning("Image monitoring already running")
             return
         
-        # Auto-detect ComfyUI output directory if none provided
+        # First try to use output_directories parameter if provided
+        if not output_directories:
+            # Then check if we have configured directories in GalleryConfig
+            try:
+                # Try relative and absolute imports to handle different module structures
+                try:
+                    from ..py.config import GalleryConfig
+                except ImportError:
+                    import sys
+                    import os
+                    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    from py.config import GalleryConfig
+                
+                if GalleryConfig.MONITORING_DIRECTORIES and len(GalleryConfig.MONITORING_DIRECTORIES) > 0:
+                    output_directories = GalleryConfig.MONITORING_DIRECTORIES
+                    self.logger.debug(f"Using configured output directories: {output_directories}")
+            except (ImportError, AttributeError) as e:
+                self.logger.debug(f"No configured directories found in GalleryConfig: {e}")
+        
+        # Finally, auto-detect ComfyUI output directory if none provided or configured
         if not output_directories:
             output_directories = self.detect_comfyui_output_dirs()
+            self.logger.debug(f"Auto-detected output directories: {output_directories}")
         
         if not output_directories:
             self.logger.warning("No output directories found to monitor")

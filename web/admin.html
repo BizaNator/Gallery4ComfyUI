@@ -326,25 +326,65 @@
 
     <!-- Settings Modal -->
     <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border border-gray-700">
+        <div class="bg-gray-800 rounded-xl p-6 max-w-lg w-full mx-4 border border-gray-700">
             <h3 class="text-xl font-semibold text-gray-100 mb-6">⚙️ Settings</h3>
             
             <div class="space-y-6">
+                <!-- UI Settings Section -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-2">Search Results Auto-Hide (seconds)</label>
-                    <input type="number" id="resultTimeout" min="0" max="300" value="30" 
-                           class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-100">
-                    <p class="text-xs text-gray-500 mt-2">Set to 0 to disable auto-hide. Controls how long search results stay visible in the ComfyUI node.</p>
+                    <h4 class="text-md font-medium text-gray-300 mb-3 border-b border-gray-700 pb-2">UI Settings</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Search Results Auto-Hide (seconds)</label>
+                            <input type="number" id="resultTimeout" min="0" max="300" value="30" 
+                                class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-100">
+                            <p class="text-xs text-gray-500 mt-2">Set to 0 to disable auto-hide. Controls how long search results stay visible in the ComfyUI node.</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Web UI Display Mode</label>
+                            <select id="webuiDisplayMode" 
+                                    class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-100">
+                                <option value="popup">Popup Window (Current)</option>
+                                <option value="newtab">New Tab</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-2">Choose how the Web UI opens when clicked from ComfyUI nodes.</p>
+                        </div>
+                    </div>
                 </div>
-                
+
+                <!-- Image Monitoring Section -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-2">Web UI Display Mode</label>
-                    <select id="webuiDisplayMode" 
-                            class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-100">
-                        <option value="popup">Popup Window (Current)</option>
-                        <option value="newtab">New Tab</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-2">Choose how the Web UI opens when clicked from ComfyUI nodes.</p>
+                    <h4 class="text-md font-medium text-gray-300 mb-3 border-b border-gray-700 pb-2">Image Monitoring Settings</h4>
+                    <div class="space-y-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="monitoringEnabled" checked
+                                   class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 mr-2">
+                            <label class="text-sm font-medium text-gray-400">Enable Automatic Image Monitoring</label>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Output Directories to Monitor</label>
+                            <div id="directoryList" class="space-y-2 mb-3">
+                                <!-- Directory entries will be added here -->
+                            </div>
+                            
+                            <div class="flex items-center mt-3">
+                                <input type="text" id="newDirectory" placeholder="Enter directory path..." 
+                                       class="flex-grow px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-100">
+                                <button id="addDirectory" 
+                                        class="ml-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                                    +
+                                </button>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2">Add paths to ComfyUI output folders you want to monitor. Leave empty to auto-detect.</p>
+                        </div>
+                        
+                        <div class="bg-gray-700/50 rounded-lg p-3 border border-gray-600">
+                            <div class="text-sm text-blue-300 mb-1">Auto-detected output directory:</div>
+                            <div id="autoDetectedDirectory" class="text-sm text-gray-400 break-all">Loading...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -820,6 +860,9 @@
     </div>
 
     <script>
+        // Initialize the window.admin object for global access
+        window.admin = {};
+        
         class PromptAdmin {
             constructor() {
                 this.prompts = [];
@@ -827,6 +870,8 @@
                 this.settings = {
                     resultTimeout: 5,
                     webuiDisplayMode: 'popup',
+                    monitoringEnabled: true,
+                    monitoringDirectories: []
                 };
                 this.categories = [];
                 this.tags = [];
@@ -970,6 +1015,8 @@
                         if (data.success && data.settings) {
                             this.settings.resultTimeout = data.settings.result_timeout || 5;
                             this.settings.webuiDisplayMode = data.settings.webui_display_mode || 'popup';
+                            this.settings.monitoringEnabled = data.settings.monitoring_enabled !== false; // Default to true
+                            this.settings.monitoringDirectories = data.settings.monitoring_directories || [];
                         }
                     }
                 } catch (error) {
@@ -1364,18 +1411,127 @@
                 document.body.style.overflow = "";
             }
 
-            showSettingsModal() {
-                document.getElementById("resultTimeout").value = this.settings.resultTimeout;
-                document.getElementById("webuiDisplayMode").value = this.settings.webuiDisplayMode;
+            async showSettingsModal() {
+                // Set current values in form
+                document.getElementById("resultTimeout").value = this.settings.resultTimeout || 5;
+                document.getElementById("webuiDisplayMode").value = this.settings.webuiDisplayMode || 'popup';
+                document.getElementById("monitoringEnabled").checked = this.settings.monitoringEnabled !== false; // default to true
+                
+                // Clear and rebuild directory list
+                const directoryList = document.getElementById("directoryList");
+                directoryList.innerHTML = "";
+                
+                // Show modal before fetching directories
                 this.showModal("settingsModal");
+                
+                try {
+                    // Get current settings from API
+                    const response = await fetch("/prompt_manager/settings");
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success && data.settings) {
+                            // Update UI with current settings
+                            document.getElementById("resultTimeout").value = data.settings.result_timeout || 5;
+                            document.getElementById("webuiDisplayMode").value = data.settings.webui_display_mode || 'popup';
+                            document.getElementById("monitoringEnabled").checked = data.settings.monitoring_enabled !== false; // default to true
+                            
+                            // Update auto-detected directory display
+                            const autoDetectedDir = document.getElementById("autoDetectedDirectory");
+                            if (data.settings.monitoring_directories && data.settings.monitoring_directories.length > 0) {
+                                autoDetectedDir.textContent = data.settings.monitoring_directories[0] || "Not detected";
+                            } else {
+                                autoDetectedDir.textContent = "Not detected";
+                            }
+                            
+                            // Add directory entries
+                            if (data.settings.monitoring_directories && data.settings.monitoring_directories.length > 0) {
+                                data.settings.monitoring_directories.forEach(dir => {
+                                    this.addDirectoryEntry(dir);
+                                });
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error loading settings:", error);
+                }
+                
+                // Set up directory add button
+                document.getElementById("addDirectory").onclick = () => {
+                    const input = document.getElementById("newDirectory");
+                    const dir = input.value.trim();
+                    
+                    if (dir) {
+                        this.addDirectoryEntry(dir);
+                        input.value = "";
+                    }
+                };
+                
+                document.getElementById("newDirectory").addEventListener("keyup", (e) => {
+                    if (e.key === "Enter") {
+                        const input = document.getElementById("newDirectory");
+                        const dir = input.value.trim();
+                        
+                        if (dir) {
+                            this.addDirectoryEntry(dir);
+                            input.value = "";
+                        }
+                    }
+                });
+            }
+            
+            addDirectoryEntry(directory) {
+                const directoryList = document.getElementById("directoryList");
+                const entryId = `dir-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+                
+                const entry = document.createElement("div");
+                entry.className = "flex items-center bg-gray-700 rounded-lg p-2 pr-3 group";
+                entry.setAttribute("data-directory", directory);
+                entry.id = entryId;
+                
+                entry.innerHTML = `
+                    <div class="flex-grow text-gray-300 text-sm break-all">${directory}</div>
+                    <button class="ml-2 text-gray-400 hover:text-white opacity-50 group-hover:opacity-100" onclick="window.admin.removeDirectoryEntry('${entryId}')">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                `;
+                
+                directoryList.appendChild(entry);
+            }
+            
+            removeDirectoryEntry(entryId) {
+                const entry = document.getElementById(entryId);
+                if (entry) {
+                    entry.remove();
+                }
+            }
+            
+            getDirectoryEntries() {
+                const entries = document.querySelectorAll("#directoryList > div");
+                const directories = [];
+                
+                entries.forEach(entry => {
+                    const dir = entry.getAttribute("data-directory");
+                    if (dir) {
+                        directories.push(dir);
+                    }
+                });
+                
+                return directories;
             }
 
             async saveSettings() {
                 const timeout = parseInt(document.getElementById("resultTimeout").value);
                 const displayMode = document.getElementById("webuiDisplayMode").value;
+                const monitoringEnabled = document.getElementById("monitoringEnabled").checked;
+                const monitoringDirectories = this.getDirectoryEntries();
                 
+                // Update local settings
                 this.settings.resultTimeout = timeout;
                 this.settings.webuiDisplayMode = displayMode;
+                this.settings.monitoringEnabled = monitoringEnabled;
+                this.settings.monitoringDirectories = monitoringDirectories;
 
                 try {
                     const response = await fetch("/prompt_manager/settings", {
@@ -1383,11 +1539,20 @@
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ 
                             result_timeout: timeout,
-                            webui_display_mode: displayMode 
+                            webui_display_mode: displayMode,
+                            monitoring_enabled: monitoringEnabled,
+                            monitoring_directories: monitoringDirectories
                         }),
                     });
 
                     if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Update the settings with what was actually saved
+                        if (data.settings) {
+                            Object.assign(this.settings, data.settings);
+                        }
+                        
                         this.showNotification("Settings saved successfully", "success");
                         this.hideModal("settingsModal");
                     } else {
@@ -1395,6 +1560,7 @@
                     }
                 } catch (error) {
                     this.showNotification("Failed to save settings", "error");
+                    console.error("Save settings error:", error);
                 }
             }
 
