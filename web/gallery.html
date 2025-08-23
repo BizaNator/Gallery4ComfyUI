@@ -170,6 +170,29 @@
                         </select>
                         <span class="text-sm text-gray-400">images</span>
                     </div>
+                    
+                    <!-- New: Filter and Sort Controls -->
+                    <div class="flex items-center space-x-3">
+                        <div class="relative">
+                            <button id="filterBtn" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center">
+                                🔍 Filter <span class="ml-1" id="activeFilterCount"></span>
+                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <!-- Filter dropdown will be added later -->
+                        </div>
+                        <div class="relative">
+                            <button id="sortBtn" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center">
+                                ↑↓ Sort
+                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <!-- Sort dropdown will be added later -->
+                        </div>
+                    </div>
+                    
                     <div class="flex items-center space-x-2">
                         <button id="refreshBtn" 
                                 class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors">
@@ -201,6 +224,121 @@
                     </span>
                     <span class="text-gray-400" id="loadingStatus">Loading...</span>
                 </div>
+            </div>
+        </div>
+        
+        <!-- Filter Dropdown -->
+        <div id="filterDropdown" class="absolute right-0 mt-2 w-72 bg-gray-800 rounded-lg shadow-lg z-10 border border-gray-700 hidden">
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="text-sm font-medium text-gray-300 mb-2">Filter Images</h3>
+                
+                <!-- Date Filter -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-400 block mb-1">Date Range</label>
+                    <div class="flex space-x-2">
+                        <input type="date" id="dateFrom" class="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs w-full">
+                        <input type="date" id="dateTo" class="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs w-full">
+                    </div>
+                </div>
+                
+                <!-- Model Filter -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-400 block mb-1">Model</label>
+                    <select id="modelFilter" class="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs w-full">
+                        <option value="">All Models</option>
+                        <!-- Will be populated dynamically -->
+                    </select>
+                </div>
+                
+                <!-- Folder Filter -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-400 block mb-1">Folder</label>
+                    <select id="folderFilter" class="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs w-full">
+                        <option value="">All Folders</option>
+                        <!-- Will be populated dynamically -->
+                    </select>
+                </div>
+                
+                <!-- Rating Filter -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-400 block mb-1">Rating</label>
+                    <div class="flex items-center space-x-1">
+                        <div id="ratingFilter" class="flex space-x-1">
+                            <span class="star cursor-pointer text-gray-500">★</span>
+                            <span class="star cursor-pointer text-gray-500">★</span>
+                            <span class="star cursor-pointer text-gray-500">★</span>
+                            <span class="star cursor-pointer text-gray-500">★</span>
+                            <span class="star cursor-pointer text-gray-500">★</span>
+                        </div>
+                        <button id="clearRatingFilter" class="ml-2 text-xs text-red-400 hover:text-red-300">clear</button>
+                    </div>
+                </div>
+                
+                <!-- Media Type Filter -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-400 block mb-1">Media Type</label>
+                    <div class="flex space-x-3">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="imageTypeFilter" class="w-3 h-3 text-violet-600 bg-gray-700 border-gray-500 rounded focus:ring-violet-500" checked>
+                            <span class="ml-1.5 text-xs text-gray-300">Images</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="videoTypeFilter" class="w-3 h-3 text-violet-600 bg-gray-700 border-gray-500 rounded focus:ring-violet-500" checked>
+                            <span class="ml-1.5 text-xs text-gray-300">Videos</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Tags Filter (with autocomplete) -->
+                <div class="mb-3">
+                    <label class="text-xs text-gray-400 block mb-1">Tags</label>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="tagInput" class="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs flex-1" placeholder="Add tag...">
+                        <button id="addTagBtn" class="px-2 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs rounded">Add</button>
+                    </div>
+                    <div id="selectedTags" class="flex flex-wrap gap-1 mt-2">
+                        <!-- Selected tags will appear here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-3 flex justify-between">
+                <button id="clearFiltersBtn" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded">
+                    Clear All
+                </button>
+                <button id="applyFiltersBtn" class="px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs rounded">
+                    Apply Filters
+                </button>
+            </div>
+        </div>
+
+        <!-- Sort Dropdown -->
+        <div id="sortDropdown" class="absolute right-0 mt-2 w-56 bg-gray-800 rounded-lg shadow-lg z-10 border border-gray-700 hidden">
+            <div class="p-2">
+                <button class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded" data-sort="date-desc">
+                    📅 Newest First
+                </button>
+                <button class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded" data-sort="date-asc">
+                    📅 Oldest First
+                </button>
+                <button class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded" data-sort="name-asc">
+                    🔤 Name (A-Z)
+                </button>
+                <button class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded" data-sort="name-desc">
+                    🔤 Name (Z-A)
+                </button>
+                <button class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded" data-sort="size-desc">
+                    📊 Size (Largest)
+                </button>
+                <button class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded" data-sort="size-asc">
+                    📊 Size (Smallest)
+                </button>
+                <button class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded" data-sort="rating-desc">
+                    ⭐ Rating (High to Low)
+                </button>
+                <button class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded" data-sort="rating-asc">
+                    ⭐ Rating (Low to High)
+                </button>
             </div>
         </div>
 
@@ -567,8 +705,27 @@
                 this.viewMode = 'grid'; // 'grid' or 'list'
                 this.viewer = null;
                 
+                // Initialize filter and sort state
+                this.filters = {
+                    dateFrom: null,
+                    dateTo: null,
+                    model: '',
+                    folder: '',
+                    rating: 0,
+                    mediaType: 'all',
+                    tags: []
+                };
+                this.sort = {
+                    by: 'date',
+                    order: 'desc'
+                };
+                
+                // Available tags from metadata
+                this.availableTags = [];
+                
                 this.initializeEventListeners();
                 this.loadImages();
+                this.loadMetadataOptions();
                 
                 // Check thumbnails at startup if enabled
                 this.checkThumbnailsAtStartup();
@@ -589,6 +746,9 @@
                         this.goToPage(parseInt(e.target.value));
                     }
                 });
+                
+                // Filter and sort event listeners
+                this.initFilterSortDropdowns();
                 
                 // Settings modal event listeners
                 document.getElementById('closeSettingsBtn').addEventListener('click', () => this.hideSettings());
@@ -618,12 +778,373 @@
                 });
             }
 
+            initFilterSortDropdowns() {
+                // Filter dropdown toggle
+                document.getElementById('filterBtn').addEventListener('click', () => {
+                    const dropdown = document.getElementById('filterDropdown');
+                    dropdown.classList.toggle('hidden');
+                    document.getElementById('sortDropdown').classList.add('hidden');
+                    
+                        // Position the dropdown
+                    const btnRect = document.getElementById('filterBtn').getBoundingClientRect();
+                    dropdown.style.position = 'fixed';
+                    dropdown.style.top = `${btnRect.bottom + 5}px`;
+                    dropdown.style.left = `${btnRect.left}px`;
+                    dropdown.style.zIndex = '1000';
+                });
+                
+                // Sort dropdown toggle
+                document.getElementById('sortBtn').addEventListener('click', () => {
+                    const dropdown = document.getElementById('sortDropdown');
+                    dropdown.classList.toggle('hidden');
+                    document.getElementById('filterDropdown').classList.add('hidden');
+                    
+                    // Position the dropdown
+                    const btnRect = document.getElementById('sortBtn').getBoundingClientRect();
+                    dropdown.style.position = 'fixed';
+                    dropdown.style.top = `${btnRect.bottom + 5}px`;
+                    dropdown.style.left = `${btnRect.left}px`;
+                    dropdown.style.zIndex = '1000';
+                });
+                
+                // Close dropdowns when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#filterBtn') && !e.target.closest('#filterDropdown') &&
+                        !e.target.closest('#sortBtn') && !e.target.closest('#sortDropdown')) {
+                        document.getElementById('filterDropdown').classList.add('hidden');
+                        document.getElementById('sortDropdown').classList.add('hidden');
+                    }
+                });
+                
+                // Apply filters button
+                document.getElementById('applyFiltersBtn').addEventListener('click', () => {
+                    this.applyFilters();
+                    document.getElementById('filterDropdown').classList.add('hidden');
+                });
+                
+                // Clear filters button
+                document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+                    this.clearFilters();
+                });
+                
+                // Rating filter
+                const stars = document.querySelectorAll('#ratingFilter .star');
+                stars.forEach((star, index) => {
+                    star.addEventListener('click', () => {
+                        const rating = index + 1;
+                        this.filters.rating = rating;
+                        this.updateRatingDisplay(rating);
+                    });
+                });
+                
+                document.getElementById('clearRatingFilter').addEventListener('click', () => {
+                    this.filters.rating = 0;
+                    this.updateRatingDisplay(0);
+                });
+                
+                // Sort buttons
+                document.querySelectorAll('#sortDropdown button').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const sortValue = btn.getAttribute('data-sort');
+                        const [by, order] = sortValue.split('-');
+                        this.sort.by = by;
+                        this.sort.order = order;
+                        this.applySorting();
+                        document.getElementById('sortDropdown').classList.add('hidden');
+                        
+                        // Update button text to show current sort
+                        const sortLabel = btn.textContent.trim();
+                        document.getElementById('sortBtn').innerHTML = `
+                            ${sortLabel}
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        `;
+                    });
+                });
+                
+                // Media type checkboxes
+                document.getElementById('imageTypeFilter').addEventListener('change', () => {
+                    this.updateMediaTypeFilter();
+                });
+                document.getElementById('videoTypeFilter').addEventListener('change', () => {
+                    this.updateMediaTypeFilter();
+                });
+                
+                // Tag handling
+                document.getElementById('addTagBtn').addEventListener('click', () => {
+                    this.addTag();
+                });
+                document.getElementById('tagInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.addTag();
+                    }
+                });
+                
+                // Date filters
+                document.getElementById('dateFrom').addEventListener('change', (e) => {
+                    this.filters.dateFrom = e.target.value || null;
+                });
+                document.getElementById('dateTo').addEventListener('change', (e) => {
+                    this.filters.dateTo = e.target.value || null;
+                });
+                
+                // Model and folder filters
+                document.getElementById('modelFilter').addEventListener('change', (e) => {
+                    this.filters.model = e.target.value;
+                });
+                document.getElementById('folderFilter').addEventListener('change', (e) => {
+                    this.filters.folder = e.target.value;
+                });
+            }
+            
+            updateRatingDisplay(rating) {
+                const stars = document.querySelectorAll('#ratingFilter .star');
+                stars.forEach((star, index) => {
+                    star.classList.toggle('text-yellow-500', index < rating);
+                    star.classList.toggle('text-gray-500', index >= rating);
+                });
+            }
+            
+            updateMediaTypeFilter() {
+                const imageChecked = document.getElementById('imageTypeFilter').checked;
+                const videoChecked = document.getElementById('videoTypeFilter').checked;
+                
+                if (imageChecked && videoChecked) {
+                    this.filters.mediaType = 'all';
+                } else if (imageChecked) {
+                    this.filters.mediaType = 'image';
+                } else if (videoChecked) {
+                    this.filters.mediaType = 'video';
+                } else {
+                    // If nothing is checked, default to all
+                    this.filters.mediaType = 'all';
+                    document.getElementById('imageTypeFilter').checked = true;
+                    document.getElementById('videoTypeFilter').checked = true;
+                }
+            }
+            
+            addTag() {
+                const input = document.getElementById('tagInput');
+                const tag = input.value.trim();
+                
+                if (tag && !this.filters.tags.includes(tag)) {
+                    this.filters.tags.push(tag);
+                    this.renderTags();
+                }
+                
+                input.value = '';
+                input.focus();
+            }
+            
+            removeTag(tag) {
+                this.filters.tags = this.filters.tags.filter(t => t !== tag);
+                this.renderTags();
+            }
+            
+            renderTags() {
+                const container = document.getElementById('selectedTags');
+                container.innerHTML = '';
+                
+                this.filters.tags.forEach(tag => {
+                    const tagEl = document.createElement('span');
+                    tagEl.className = 'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-violet-900 text-violet-200';
+                    tagEl.innerHTML = `
+                        ${tag}
+                        <button type="button" class="ml-1 text-violet-300 hover:text-violet-100">
+                            ×
+                        </button>
+                    `;
+                    tagEl.querySelector('button').addEventListener('click', () => {
+                        this.removeTag(tag);
+                    });
+                    container.appendChild(tagEl);
+                });
+            }
+            
+            applyFilters() {
+                this.currentPage = 1;
+                this.loadImages();
+                
+                // Update filter count badge
+                let activeFilterCount = 0;
+                if (this.filters.dateFrom || this.filters.dateTo) activeFilterCount++;
+                if (this.filters.model) activeFilterCount++;
+                if (this.filters.folder) activeFilterCount++;
+                if (this.filters.rating > 0) activeFilterCount++;
+                if (this.filters.mediaType !== 'all') activeFilterCount++;
+                if (this.filters.tags.length > 0) activeFilterCount++;
+                
+                const countEl = document.getElementById('activeFilterCount');
+                if (activeFilterCount > 0) {
+                    countEl.textContent = `(${activeFilterCount})`;
+                    countEl.classList.add('px-1.5', 'py-0.5', 'bg-violet-700', 'rounded-full', 'text-xs');
+                } else {
+                    countEl.textContent = '';
+                    countEl.classList.remove('px-1.5', 'py-0.5', 'bg-violet-700', 'rounded-full', 'text-xs');
+                }
+            }
+            
+            async loadMetadataOptions() {
+                try {
+                    const response = await fetch('/prompt_manager/images/metadata/options');
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.success && data.options) {
+                        // Update model options
+                        if (data.options.models && data.options.models.length > 0) {
+                            const modelSelect = document.getElementById('modelFilter');
+                            const currentValue = modelSelect.value;
+                            
+                            // Save the currently selected value
+                            modelSelect.innerHTML = '<option value="">All Models</option>';
+                            
+                            // Add the model options
+                            data.options.models.forEach(model => {
+                                const option = document.createElement('option');
+                                option.value = model;
+                                option.textContent = model;
+                                if (model === currentValue) {
+                                    option.selected = true;
+                                }
+                                modelSelect.appendChild(option);
+                            });
+                        }
+                        
+                        // Update folder options
+                        if (data.options.folders && data.options.folders.length > 0) {
+                            const folderSelect = document.getElementById('folderFilter');
+                            const currentValue = folderSelect.value;
+                            
+                            // Save the currently selected value
+                            folderSelect.innerHTML = '<option value="">All Folders</option>';
+                            
+                            // Add the folder options
+                            data.options.folders.forEach(folder => {
+                                const option = document.createElement('option');
+                                option.value = folder;
+                                option.textContent = folder;
+                                if (folder === currentValue) {
+                                    option.selected = true;
+                                }
+                                folderSelect.appendChild(option);
+                            });
+                        }
+                        
+                        // Store tags for autocomplete
+                        if (data.options.tags && data.options.tags.length > 0) {
+                            this.availableTags = data.options.tags;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading metadata options:', error);
+                }
+            }
+            
+            clearFilters() {
+                // Reset all filters to default
+                this.filters = {
+                    dateFrom: null,
+                    dateTo: null,
+                    model: '',
+                    folder: '',
+                    rating: 0,
+                    mediaType: 'all',
+                    tags: []
+                };
+                
+                // Reset UI elements
+                document.getElementById('dateFrom').value = '';
+                document.getElementById('dateTo').value = '';
+                document.getElementById('modelFilter').value = '';
+                document.getElementById('folderFilter').value = '';
+                document.getElementById('imageTypeFilter').checked = true;
+                document.getElementById('videoTypeFilter').checked = true;
+                document.getElementById('tagInput').value = '';
+                document.getElementById('selectedTags').innerHTML = '';
+                this.updateRatingDisplay(0);
+                
+                // Apply the cleared filters
+                this.applyFilters();
+            }
+            
+            applySorting() {
+                this.currentPage = 1;
+                this.loadImages();
+            }
+            
+            updateFilterOptions(filterData) {
+                // Update model options
+                if (filterData.models && filterData.models.length > 0) {
+                    const modelSelect = document.getElementById('modelFilter');
+                    const currentValue = modelSelect.value;
+                    
+                    // Save the currently selected value
+                    modelSelect.innerHTML = '<option value="">All Models</option>';
+                    
+                    // Add the model options
+                    filterData.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model;
+                        option.textContent = model;
+                        if (model === currentValue) {
+                            option.selected = true;
+                        }
+                        modelSelect.appendChild(option);
+                    });
+                }
+                
+                // Update folder options
+                if (filterData.folders && filterData.folders.length > 0) {
+                    const folderSelect = document.getElementById('folderFilter');
+                    const currentValue = folderSelect.value;
+                    
+                    // Save the currently selected value
+                    folderSelect.innerHTML = '<option value="">All Folders</option>';
+                    
+                    // Add the folder options
+                    filterData.folders.forEach(folder => {
+                        const option = document.createElement('option');
+                        option.value = folder;
+                        option.textContent = folder;
+                        if (folder === currentValue) {
+                            option.selected = true;
+                        }
+                        folderSelect.appendChild(option);
+                    });
+                }
+            }
+            
             async loadImages() {
                 this.showLoading();
                 
                 try {
                     const offset = (this.currentPage - 1) * this.limit;
-                    const response = await fetch(`/prompt_manager/images/output?limit=${this.limit}&offset=${offset}`);
+                    
+                    // Build query parameters with filters and sorting
+                    const params = new URLSearchParams();
+                    params.append('limit', this.limit);
+                    params.append('offset', offset);
+                    
+                    // Add filter parameters
+                    if (this.filters.dateFrom) params.append('date_from', this.filters.dateFrom);
+                    if (this.filters.dateTo) params.append('date_to', this.filters.dateTo);
+                    if (this.filters.model) params.append('model', this.filters.model);
+                    if (this.filters.folder) params.append('folder', this.filters.folder);
+                    if (this.filters.rating > 0) params.append('rating', this.filters.rating);
+                    if (this.filters.mediaType !== 'all') params.append('media_type', this.filters.mediaType);
+                    if (this.filters.tags.length > 0) params.append('tags', this.filters.tags.join(','));
+                    
+                    // Add sorting parameters
+                    params.append('sort_by', this.sort.by);
+                    params.append('sort_order', this.sort.order);
+                    
+                    const response = await fetch(`/prompt_manager/images/output?${params.toString()}`);
                     
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -634,6 +1155,12 @@
                     if (data.success) {
                         this.images = data.images;
                         this.total = data.total;
+                        
+                        // Update filter dropdown options if available
+                        if (data.available_filters) {
+                            this.updateFilterOptions(data.available_filters);
+                        }
+                        
                         this.updateStats();
                         this.renderGallery();
                         this.updatePagination();
@@ -1605,6 +2132,77 @@
                         </div>
                     </div>
 
+                    <!-- Image Rating Section -->
+                    <div class="space-y-3">
+                        <h2 class="text-sm font-medium text-gray-300">Image Rating & Tags</h2>
+                        <div class="space-y-4">
+                            <!-- Rating Stars -->
+                            <div>
+                                <div class="flex items-center mb-2">
+                                    <span class="text-xs text-gray-400 mr-2">Rating:</span>
+                                    <div class="rating-stars flex" data-current-rating="${metadata.rating || 0}">
+                                        ${[1, 2, 3, 4, 5].map(star => `
+                                            <button class="text-lg px-1 cursor-pointer star-btn ${(metadata.rating || 0) >= star ? 'text-yellow-400' : 'text-gray-600'}" 
+                                                data-rating="${star}" data-action="set-rating">
+                                                ★
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                                <div class="text-xs text-gray-500">${metadata.rating ? `Current rating: ${metadata.rating}/5` : 'No rating set'}</div>
+                            </div>
+                            
+                            <!-- Tags -->
+                            <div>
+                                <div class="flex items-center mb-2">
+                                    <span class="text-xs text-gray-400 mr-2">Tags:</span>
+                                    <div class="text-xs bg-gray-700 rounded p-1 flex-grow">
+                                        <input type="text" id="tagInput" placeholder="Add tag..." 
+                                            class="bg-transparent w-full text-white outline-none border-none" 
+                                            data-action="add-tag-input">
+                                    </div>
+                                    <button class="ml-1 px-2 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs rounded" 
+                                        data-action="add-tag">Add</button>
+                                </div>
+                                
+                                <div id="tagsList" class="flex flex-wrap gap-1 mt-2">
+                                    ${(metadata.tags || []).map(tag => `
+                                        <div class="tag-chip flex items-center bg-gray-700 text-gray-200 text-xs px-2 py-1 rounded">
+                                            ${tag}
+                                            <button class="ml-1 text-gray-400 hover:text-red-400" data-action="remove-tag" data-tag="${tag}">×</button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            
+                            <!-- Model & Folder -->
+                            <div>
+                                <div class="flex items-center mb-2">
+                                    <span class="text-xs text-gray-400 mr-2">Model:</span>
+                                    <div class="text-xs bg-gray-700 rounded p-1 flex-grow">
+                                        <input type="text" id="modelInput" placeholder="Model name..." 
+                                            class="bg-transparent w-full text-white outline-none border-none"
+                                            value="${metadata.checkpoint || ''}" data-action="set-model">
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center mt-2 mb-2">
+                                    <span class="text-xs text-gray-400 mr-2">Folder:</span>
+                                    <div class="text-xs bg-gray-700 rounded p-1 flex-grow">
+                                        <input type="text" id="folderInput" placeholder="Folder name..." 
+                                            class="bg-transparent w-full text-white outline-none border-none"
+                                            value="${metadata.folder || ''}" data-action="set-folder">
+                                    </div>
+                                </div>
+                                
+                                <button class="w-full mt-3 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                                    data-action="save-metadata">
+                                    Save Metadata
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- ComfyUI Workflow -->
                     ${metadata.workflow ? `
                         <div class="space-y-3">
@@ -1737,8 +2335,105 @@
                     });
                 });
 
+                // Copy all button
+                const copyAllBtn = container.closest('.metadata-sidebar')?.querySelector('.metadata-copy-all');
+                if (copyAllBtn) {
+                    copyAllBtn.addEventListener('click', () => {
+                        this.copyAllMetadata();
+                    });
+                }
+                
+                // Rating stars
+                const starButtons = container.querySelectorAll('[data-action="set-rating"]');
+                starButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const rating = parseInt(btn.getAttribute('data-rating'));
+                        this.updateRatingStars(rating, container);
+                    });
+                });
+                
+                // Tag management
+                const addTagBtn = container.querySelector('[data-action="add-tag"]');
+                if (addTagBtn) {
+                    addTagBtn.addEventListener('click', () => {
+                        const input = container.querySelector('#tagInput');
+                        if (input && input.value.trim()) {
+                            this.addTag(input.value.trim(), container);
+                            input.value = '';
+                        }
+                    });
+                }
+                
+                const tagInput = container.querySelector('[data-action="add-tag-input"]');
+                if (tagInput) {
+                    tagInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter' && tagInput.value.trim()) {
+                            this.addTag(tagInput.value.trim(), container);
+                            tagInput.value = '';
+                        }
+                    });
+                    
+                    // Add auto-complete from available tags
+                    if (this.availableTags && this.availableTags.length > 0) {
+                        // Simple autocomplete on input
+                        tagInput.addEventListener('input', (e) => {
+                            const value = e.target.value.trim().toLowerCase();
+                            if (value.length > 1) {
+                                const matches = this.availableTags.filter(tag => 
+                                    tag.toLowerCase().includes(value)
+                                ).slice(0, 5); // Limit to 5 suggestions
+                                
+                                // Show autocomplete if we have matches
+                                if (matches.length > 0) {
+                                    this.showTagAutocomplete(matches, tagInput, container);
+                                } else {
+                                    this.hideTagAutocomplete();
+                                }
+                            } else {
+                                this.hideTagAutocomplete();
+                            }
+                        });
+                    }
+                }
+                
+                // Remove tag buttons
+                const removeTagBtns = container.querySelectorAll('[data-action="remove-tag"]');
+                removeTagBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const tag = btn.getAttribute('data-tag');
+                        this.removeTag(tag, container);
+                    });
+                });
+                
+                // Model and folder inputs
+                const modelInput = container.querySelector('#modelInput');
+                if (modelInput) {
+                    modelInput.addEventListener('input', (e) => {
+                        if (this.currentMetadata) {
+                            this.currentMetadata.checkpoint = e.target.value;
+                        }
+                    });
+                }
+                
+                const folderInput = container.querySelector('#folderInput');
+                if (folderInput) {
+                    folderInput.addEventListener('input', (e) => {
+                        if (this.currentMetadata) {
+                            this.currentMetadata.folder = e.target.value;
+                        }
+                    });
+                }
+                
+                // Save metadata button
+                const saveMetadataBtn = container.querySelector('[data-action="save-metadata"]');
+                if (saveMetadataBtn) {
+                    saveMetadataBtn.addEventListener('click', () => {
+                        this.saveImageMetadata(container);
+                    });
+                }
+                
                 // Workflow action buttons
-                const actionBtns = container.querySelectorAll('[data-action]');
+                const actionBtns = container.querySelectorAll('[data-action="show-workflow"], [data-action="download-workflow"]');
                 actionBtns.forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         const action = btn.getAttribute('data-action');
@@ -1749,14 +2444,6 @@
                         }
                     });
                 });
-
-                // Copy all button
-                const copyAllBtn = container.closest('.metadata-sidebar').querySelector('.metadata-copy-all');
-                if (copyAllBtn) {
-                    copyAllBtn.addEventListener('click', () => {
-                        this.copyAllMetadata();
-                    });
-                }
             }
 
             showFullPrompt(type) {
@@ -3353,6 +4040,178 @@ Seed: ${this.currentMetadata.seed || 'Unknown'}`;
                         }
                     };
                 });
+            }
+            
+            updateRatingStars(rating, container) {
+                if (!this.currentMetadata) return;
+                
+                // Update metadata object
+                this.currentMetadata.rating = rating;
+                
+                // Update UI
+                const stars = container.querySelectorAll('.star-btn');
+                stars.forEach((star, index) => {
+                    const starRating = parseInt(star.getAttribute('data-rating'));
+                    if (starRating <= rating) {
+                        star.classList.add('text-yellow-400');
+                        star.classList.remove('text-gray-600');
+                    } else {
+                        star.classList.remove('text-yellow-400');
+                        star.classList.add('text-gray-600');
+                    }
+                });
+                
+                // Update rating text
+                const ratingStarsDiv = container.querySelector('.rating-stars');
+                ratingStarsDiv.setAttribute('data-current-rating', rating);
+                
+                // Update rating text
+                const ratingText = container.querySelector('.rating-stars + div');
+                if (ratingText) {
+                    ratingText.textContent = `Current rating: ${rating}/5`;
+                }
+            }
+            
+            addTag(tag, container) {
+                if (!this.currentMetadata) return;
+                
+                // Initialize tags array if needed
+                if (!this.currentMetadata.tags) {
+                    this.currentMetadata.tags = [];
+                }
+                
+                // Skip if tag already exists
+                if (this.currentMetadata.tags.includes(tag)) {
+                    this.showNotification('Tag already exists', 'info');
+                    return;
+                }
+                
+                // Add tag to metadata
+                this.currentMetadata.tags.push(tag);
+                
+                // Update UI
+                const tagsList = container.querySelector('#tagsList');
+                const tagChip = document.createElement('div');
+                tagChip.className = 'tag-chip flex items-center bg-gray-700 text-gray-200 text-xs px-2 py-1 rounded';
+                tagChip.innerHTML = `
+                    ${tag}
+                    <button class="ml-1 text-gray-400 hover:text-red-400" data-action="remove-tag" data-tag="${tag}">×</button>
+                `;
+                
+                // Add click handler to remove button
+                const removeBtn = tagChip.querySelector('button');
+                removeBtn.addEventListener('click', () => {
+                    this.removeTag(tag, container);
+                });
+                
+                tagsList.appendChild(tagChip);
+            }
+            
+            removeTag(tag, container) {
+                if (!this.currentMetadata || !this.currentMetadata.tags) return;
+                
+                // Remove tag from metadata
+                this.currentMetadata.tags = this.currentMetadata.tags.filter(t => t !== tag);
+                
+                // Update UI
+                const tagsList = container.querySelector('#tagsList');
+                const tagChips = tagsList.querySelectorAll('.tag-chip');
+                tagChips.forEach(chip => {
+                    if (chip.textContent.trim().startsWith(tag)) {
+                        tagsList.removeChild(chip);
+                    }
+                });
+            }
+            
+            showTagAutocomplete(suggestions, inputElement, container) {
+                // Remove any existing autocomplete dropdown
+                this.hideTagAutocomplete();
+                
+                // Create dropdown
+                const dropdown = document.createElement('div');
+                dropdown.id = 'tagAutocomplete';
+                dropdown.className = 'absolute bg-gray-800 border border-gray-600 rounded mt-1 py-1 z-50 w-full max-h-32 overflow-y-auto';
+                dropdown.style.left = `${inputElement.offsetLeft}px`;
+                dropdown.style.top = `${inputElement.offsetTop + inputElement.offsetHeight}px`;
+                
+                // Add suggestions
+                suggestions.forEach(tag => {
+                    const item = document.createElement('div');
+                    item.className = 'px-3 py-1 text-white text-xs hover:bg-gray-700 cursor-pointer';
+                    item.textContent = tag;
+                    
+                    item.addEventListener('click', () => {
+                        inputElement.value = '';
+                        this.addTag(tag, container);
+                        this.hideTagAutocomplete();
+                    });
+                    
+                    dropdown.appendChild(item);
+                });
+                
+                // Add to DOM
+                const parent = inputElement.parentNode;
+                parent.style.position = 'relative';
+                parent.appendChild(dropdown);
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', this.hideTagAutocomplete);
+            }
+            
+            hideTagAutocomplete() {
+                const dropdown = document.getElementById('tagAutocomplete');
+                if (dropdown) {
+                    dropdown.parentNode.removeChild(dropdown);
+                }
+                document.removeEventListener('click', this.hideTagAutocomplete);
+            }
+            
+            async saveImageMetadata(container) {
+                if (!this.currentMetadata || !this.currentMetadata.absoluteFilePath) {
+                    this.showNotification('Cannot save metadata: No absolute file path available', 'error');
+                    return;
+                }
+                
+                const saveBtn = container.querySelector('[data-action="save-metadata"]');
+                if (saveBtn) {
+                    const originalText = saveBtn.textContent;
+                    saveBtn.textContent = 'Saving...';
+                    saveBtn.disabled = true;
+                    
+                    try {
+                        const response = await fetch('/prompt_manager/images/metadata', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                image_path: this.currentMetadata.absoluteFilePath,
+                                rating: this.currentMetadata.rating || null,
+                                tags: this.currentMetadata.tags || [],
+                                model: this.currentMetadata.checkpoint || null,
+                                folder: this.currentMetadata.folder || null
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.showNotification('Metadata saved successfully!', 'success');
+                            
+                            // Refresh the gallery to show the new filters
+                            this.loadMetadataOptions();
+                            this.loadImages();
+                        } else {
+                            throw new Error(data.error || 'Failed to save metadata');
+                        }
+                    } catch (error) {
+                        this.showNotification(`Error saving metadata: ${error.message}`, 'error');
+                        console.error('Error saving metadata:', error);
+                    } finally {
+                        saveBtn.textContent = originalText;
+                        saveBtn.disabled = false;
+                    }
+                }
             }
         }
 

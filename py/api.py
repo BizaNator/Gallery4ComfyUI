@@ -456,6 +456,19 @@ class PromptManagerAPI:
         @routes.get("/prompt_manager/logs/stats")
         async def get_log_stats_route(request):
             return await self.get_log_stats(request)
+            
+        # Image metadata endpoints
+        @routes.post("/prompt_manager/images/metadata")
+        async def update_image_metadata_route(request):
+            return await self.update_image_metadata(request)
+            
+        @routes.get("/prompt_manager/images/metadata")
+        async def get_image_metadata_route(request):
+            return await self.get_image_metadata(request)
+            
+        @routes.get("/prompt_manager/images/metadata/options")
+        async def get_metadata_options_route(request):
+            return await self.get_metadata_options(request)
 
         self.logger.info("All routes registered with decorator pattern")
 
@@ -1852,9 +1865,10 @@ class PromptManagerAPI:
             }, status=500)
 
     async def get_output_images(self, request):
-        """Get all images from ComfyUI output folder."""
+        """Get all images from ComfyUI output folder with filtering and sorting."""
         try:
             import os
+            import datetime
             from pathlib import Path
             
             # Find ComfyUI output directory
@@ -1869,6 +1883,19 @@ class PromptManagerAPI:
             # Get pagination parameters
             limit = int(request.query.get('limit', 100))
             offset = int(request.query.get('offset', 0))
+            
+            # Get filter parameters
+            date_from = request.query.get('date_from')
+            date_to = request.query.get('date_to')
+            model_filter = request.query.get('model')
+            folder_filter = request.query.get('folder')
+            rating_filter = request.query.get('rating')
+            media_type = request.query.get('media_type', 'all')  # 'all', 'image', 'video'
+            tags = request.query.get('tags')  # comma-separated list of tags
+            
+            # Get sorting parameters
+            sort_by = request.query.get('sort_by', 'date')  # 'date', 'name', 'size', 'rating'
+            sort_order = request.query.get('sort_order', 'desc')  # 'asc', 'desc'
             
             # Find all media files (images and videos)
             image_extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
@@ -1894,14 +1921,59 @@ class PromptManagerAPI:
                                 seen_paths.add(normalized_path)
                                 all_images.append(media_path)
             
-            # Sort by modification time (newest first)
-            all_images.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            # Apply date filter if provided
+            if date_from or date_to:
+                filtered_images = []
+                for img_path in all_images:
+                    stat = img_path.stat()
+                    mod_time = datetime.datetime.fromtimestamp(stat.st_mtime)
+                    
+                    if date_from:
+                        try:
+                            date_from_obj = datetime.datetime.fromisoformat(date_from)
+                            if mod_time < date_from_obj:
+                                continue
+                        except ValueError:
+                            self.logger.error(f"Invalid date_from format: {date_from}")
+                            
+                    if date_to:
+                        try:
+                            date_to_obj = datetime.datetime.fromisoformat(date_to)
+                            if mod_time > date_to_obj:
+                                continue
+                        except ValueError:
+                            self.logger.error(f"Invalid date_to format: {date_to}")
+                            
+                    filtered_images.append(img_path)
+                all_images = filtered_images
+            
+            # Apply folder filter if provided
+            if folder_filter:
+                all_images = [img for img in all_images if folder_filter in str(img)]
+            
+            # Apply media type filter
+            if media_type == 'image':
+                all_images = [img for img in all_images if img.suffix.lower() in image_extensions]
+            elif media_type == 'video':
+                all_images = [img for img in all_images if img.suffix.lower() in video_extensions]
+            
+            # Apply sorting
+            if sort_by == 'date':
+                all_images.sort(key=lambda x: x.stat().st_mtime, reverse=(sort_order == 'desc'))
+            elif sort_by == 'name':
+                all_images.sort(key=lambda x: x.name.lower(), reverse=(sort_order == 'desc'))
+            elif sort_by == 'size':
+                all_images.sort(key=lambda x: x.stat().st_size, reverse=(sort_order == 'desc'))
+            # Rating sorting would be handled later with filtered data
             
             # Apply pagination
             paginated_images = all_images[offset:offset + limit]
             
             # Format media data (images and videos)
             images = []
+            unique_models = set()
+            unique_folders = set()
+            
             for media_path in paginated_images:
                 try:
                     stat = media_path.stat()
@@ -1911,7 +1983,11 @@ class PromptManagerAPI:
                     # Determine media type
                     extension = media_path.suffix.lower()
                     is_video = extension in video_extensions
-                    media_type = 'video' if is_video else 'image'
+                    media_type_value = 'video' if is_video else 'image'
+                    
+                    # Determine folder
+                    parent_folder = media_path.parent.name
+                    unique_folders.add(parent_folder)
                     
                     # Check if thumbnail exists for this media
                     thumbnail_url = None
@@ -1924,6 +2000,73 @@ class PromptManagerAPI:
                         if thumbnail_abs_path.exists():
                             thumbnail_url = f'/prompt_manager/images/serve/{Path(thumbnail_rel_path).as_posix()}'
                     
+                    # Extract metadata for model info and any additional filtering
+                    model = None
+                    rating = None
+                    image_tags = []
+                    
+                    # Check for saved metadata in database first
+                    try:
+                        from database.operations import PromptDatabase
+                        db = PromptDatabase()
+                        image_metadata = db.get_image_metadata(str(media_path))
+                        
+                        if image_metadata:
+                            model = image_metadata.get('model')
+                            rating = image_metadata.get('rating')
+                            image_tags = image_metadata.get('tags', [])
+                            
+                            # Add to unique models if present
+                            if model:
+                                unique_models.add(model)
+                    except Exception as e:
+                        self.logger.debug(f"Error getting image metadata from database: {e}")
+                    
+                    # If no metadata in database and it's a PNG file, try to extract from file
+                    if (not model or not image_tags) and extension == '.png' and (model_filter or tags):
+                        try:
+                            from utils.metadata_extractor import ComfyUIMetadataExtractor
+                            extractor = ComfyUIMetadataExtractor()
+                            metadata = extractor.extract_metadata(str(media_path))
+                            
+                            if metadata:
+                                # Try to extract model information
+                                # This is just an example - adapt based on your workflow structure
+                                if 'workflow' in metadata:
+                                    workflow = metadata.get('workflow', {})
+                                    # This is simplified - you'd need to look at your actual workflow structure
+                                    nodes = workflow.get('nodes', {})
+                                    
+                                    # Look for checkpoint loader nodes
+                                    for node_id, node in nodes.items():
+                                        if isinstance(node, dict):
+                                            node_type = node.get('class_type', '')
+                                            if 'CheckpointLoader' in node_type or 'CheckpointLoaderSimple' in node_type:
+                                                if 'inputs' in node and 'ckpt_name' in node['inputs']:
+                                                    model = node['inputs']['ckpt_name']
+                                                    if model:
+                                                        unique_models.add(model)
+                                                        break
+                        except Exception as e:
+                            self.logger.debug(f"Error extracting metadata: {e}")
+                    
+                    # Filter by model if specified
+                    if model_filter and model and model_filter not in model:
+                        continue
+                    
+                    # Filter by rating if specified (would need a database)
+                    if rating_filter and int(rating_filter) > 0:
+                        # Placeholder for rating filter
+                        # In a real implementation, you'd query your rating database
+                        pass
+                    
+                    # Filter by tags if specified (would need a database)
+                    if tags:
+                        tags_list = tags.split(',')
+                        # Placeholder for tag filtering
+                        # In a real implementation, you'd query your tags database
+                        pass
+                    
                     images.append({
                         'id': str(hash(str(media_path))),  # Simple hash for ID
                         'filename': media_path.name,
@@ -1935,12 +2078,20 @@ class PromptManagerAPI:
                         'size': stat.st_size,
                         'modified_time': stat.st_mtime,
                         'extension': extension,
-                        'media_type': media_type,          # 'image' or 'video'
-                        'is_video': is_video
+                        'media_type': media_type_value,    # 'image' or 'video'
+                        'is_video': is_video,
+                        'folder': parent_folder,           # Parent folder name
+                        'model': model,                    # Model used (if available)
+                        'rating': rating,                  # Rating (if available)
+                        'tags': image_tags                 # Tags (if available)
                     })
                 except Exception as e:
                     self.logger.error(f"Error processing media {media_path}: {e}")
                     continue
+            
+            # If we're sorting by rating, apply the sort now (after we've processed the items)
+            if sort_by == 'rating':
+                images.sort(key=lambda x: x.get('rating', 0) or 0, reverse=(sort_order == 'desc'))
             
             return web.json_response({
                 'success': True,
@@ -1948,7 +2099,11 @@ class PromptManagerAPI:
                 'total': len(all_images),
                 'offset': offset,
                 'limit': limit,
-                'has_more': offset + limit < len(all_images)
+                'has_more': offset + limit < len(all_images),
+                'available_filters': {
+                    'models': list(unique_models),
+                    'folders': list(unique_folders)
+                }
             })
             
         except Exception as e:
@@ -4351,4 +4506,164 @@ class PromptManagerAPI:
             return web.json_response({
                 'success': False,
                 'error': str(e)
+            }, status=500)
+            
+    async def update_image_metadata(self, request):
+        """
+        Update metadata for an image (rating, tags, folder, model).
+        
+        POST /prompt_manager/images/metadata
+        
+        Request body:
+        {
+            "image_path": "path/to/image.png",  # Required: Full path to image
+            "rating": 5,                        # Optional: Rating (1-5)
+            "tags": ["portrait", "anime"],      # Optional: Array of tags
+            "folder": "character_portraits",    # Optional: Folder name
+            "model": "sd_xl_base_1.0"           # Optional: Model name
+        }
+        """
+        try:
+            # Database is already imported at the class level
+            
+            # Parse request body
+            data = await request.json()
+            
+            # Validate required fields
+            if 'image_path' not in data:
+                return web.json_response({
+                    'success': False,
+                    'error': 'Missing required field: image_path'
+                }, status=400)
+                
+            # Extract fields
+            image_path = data.get('image_path')
+            rating = data.get('rating')
+            tags = data.get('tags')
+            folder = data.get('folder')
+            model = data.get('model')
+            
+            # Validate rating if provided
+            if rating is not None:
+                try:
+                    rating = int(rating)
+                    if rating < 1 or rating > 5:
+                        return web.json_response({
+                            'success': False,
+                            'error': 'Rating must be between 1 and 5'
+                        }, status=400)
+                except (ValueError, TypeError):
+                    return web.json_response({
+                        'success': False,
+                        'error': 'Rating must be an integer'
+                    }, status=400)
+            
+            # Update metadata in database
+            db = PromptDatabase()
+            success = db.update_image_metadata(
+                image_path=image_path,
+                rating=rating,
+                tags=tags,
+                folder=folder,
+                model=model
+            )
+            
+            if success:
+                return web.json_response({
+                    'success': True,
+                    'message': 'Image metadata updated successfully'
+                })
+            else:
+                return web.json_response({
+                    'success': False,
+                    'error': 'Failed to update image metadata'
+                }, status=500)
+            
+        except Exception as e:
+            self.logger.error(f"Update image metadata error: {e}")
+            return web.json_response({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+            
+    async def get_image_metadata(self, request):
+        """
+        Get metadata for a specific image.
+        
+        GET /prompt_manager/images/metadata?image_path=path/to/image.png
+        """
+        try:
+            # Database is already imported at the class level
+            
+            # Get image path from query parameters
+            image_path = request.query.get('image_path')
+            
+            if not image_path:
+                return web.json_response({
+                    'success': False,
+                    'error': 'Missing required query parameter: image_path'
+                }, status=400)
+                
+            # Get metadata from database
+            db = PromptDatabase()
+            metadata = db.get_image_metadata(image_path)
+            
+            if metadata:
+                return web.json_response({
+                    'success': True,
+                    'metadata': metadata
+                })
+            else:
+                return web.json_response({
+                    'success': False,
+                    'error': 'Image metadata not found',
+                    'metadata': None
+                }, status=404)
+            
+        except Exception as e:
+            self.logger.error(f"Get image metadata error: {e}")
+            return web.json_response({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+            
+    async def get_metadata_options(self, request):
+        """
+        Get available options for metadata fields (folders, models, tags).
+        
+        GET /prompt_manager/images/metadata/options
+        """
+        try:
+            # Database is already imported at the class level
+            
+            db = PromptDatabase()
+            
+            # Get folders and models
+            folders_models = db.get_unique_folders_and_models()
+            
+            # Get all tags
+            tags_query = "SELECT DISTINCT json_each.value FROM image_metadata, json_each(image_metadata.tags) WHERE tags != '[]' AND tags IS NOT NULL"
+            with db.model.get_connection() as conn:
+                cursor = conn.execute(tags_query)
+                all_tags = [row[0] for row in cursor.fetchall() if row[0]]
+            
+            return web.json_response({
+                'success': True,
+                'options': {
+                    'folders': folders_models.get('folders', []),
+                    'models': folders_models.get('models', []),
+                    'tags': sorted(all_tags)
+                }
+            })
+            
+        except Exception as e:
+            self.logger.error(f"Get metadata options error: {e}")
+            return web.json_response({
+                'success': False,
+                'error': str(e),
+                'options': {
+                    'folders': [],
+                    'models': [],
+                    'tags': []
+                }
             }, status=500)

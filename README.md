@@ -1,6 +1,16 @@
 # ComfyUI Prompt Manager
 
-A comprehensive ComfyUI custom node that extends the standard text encoder with persistent prompt storage, advanced search capabilities, automatic image gallery system, and powerful ComfyUI workflow metadata analysis using SQLite.
+A comprehensive ComfyUI custom node that extends the standard text enc#### **📋 Advanced Metadata Analysis**
+
+![Prompt Editor](images/pm-06.jpg)
+
+- **Real-time PNG Parsing**: Extract ComfyUI workflow data from any generated image
+- **Integrated Metadata Panel**: Live workflow analysis with copy functionality
+- **Generation Parameters**: CFG scale, steps, sampler, seed, and model information
+- **One-click Copying**: Copy prompts, parameters, and workflow data directly
+- **Full File Path Display**: Shows absolute system paths to easily locate your files
+- **Path Display Options**: Toggle between system paths and server URLs for privacy
+- **Cross-Platform Support**: Works on desktop, tablet, and mobile devicespersistent prompt storage, advanced search capabilities, automatic image gallery system, and powerful ComfyUI workflow metadata analysis using SQLite.
 
 ## Overview
 
@@ -268,6 +278,8 @@ Configure your viewing experience in the settings panel:
 - **Performance Settings**: Grid columns, image quality, lazy loading
 - **Video Settings**: Autoplay, mute by default, loop videos
 - **Thumbnail Management**: Generate optimized thumbnails for faster loading
+- **File Path Display**: Choose between absolute system paths or server URLs
+- **Metadata Options**: Control what information is shown and how
 
 #### **🖼️ Image Viewing Experience**
 1. **Click any image** to open the professional viewer with:
@@ -713,6 +725,17 @@ MIT License - see LICENSE file for details.
 - **Version control**: Track prompt iterations and effectiveness
 
 ## Changelog
+
+### v3.0.10 (Full Paths & Privacy Options)
+
+- **🛣️ Absolute File Paths**: Gallery now displays full file system paths for easy file location
+- **🔒 Path Privacy Options**: New setting to toggle between full system paths and server URLs
+- **💾 Path Header Integration**: Added X-File-Path header to image responses for reliable path extraction
+- **📋 Metadata Display Enhancement**: Updated metadata panel to show full paths with visual indicators
+- **📱 Copy Path Functionality**: One-click copy of absolute or server paths based on settings
+- **⚙️ Settings Integration**: Path display options integrated into gallery settings panel
+- **🔄 Consistent Experience**: All copy operations respect user's path display preferences
+- **🖥️ Network Share Support**: Makes locating files much easier, especially on network shares
 
 ### v3.0.9 (Output-Wide Gallery & Video Support)
 

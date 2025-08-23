@@ -127,6 +127,26 @@ class PromptModel:
         
         for index_sql in indexes:
             conn.execute(index_sql)
+            
+        # Create image_metadata table for storing ratings and tags
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS image_metadata (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_path TEXT NOT NULL UNIQUE,
+                rating INTEGER CHECK(rating >= 1 AND rating <= 5),
+                tags TEXT,
+                folder TEXT,
+                model TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create indexes for image_metadata
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_image_metadata_path ON image_metadata(image_path)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_image_metadata_rating ON image_metadata(rating)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_image_metadata_folder ON image_metadata(folder)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_image_metadata_model ON image_metadata(model)")
     
     def get_connection(self) -> sqlite3.Connection:
         """

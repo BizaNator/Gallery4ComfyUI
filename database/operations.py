@@ -965,3 +965,230 @@ class PromptDatabase:
                 data[field] = {}
         
         return data
+        
+    # Image metadata operations
+    def update_image_metadata(
+        self,
+        image_path: str,
+        rating: Optional[int] = None,
+        tags: Optional[List[str]] = None,
+        folder: Optional[str] = None,
+        model: Optional[str] = None
+    ) -> bool:
+        """
+        Update or create metadata for an image.
+        
+        Args:
+            image_path: Absolute path to the image file
+            rating: Rating 1-5
+            tags: List of tags
+            folder: Folder name
+            model: Model name
+            
+        Returns:
+            bool: True if update was successful
+        """
+        try:
+            if rating is not None and (rating < 1 or rating > 5):
+                raise ValueError("Rating must be between 1 and 5")
+                
+            tags_json = json.dumps(tags) if tags else None
+            
+            with self.model.get_connection() as conn:
+                # Check if entry exists
+                cursor = conn.execute(
+                    "SELECT id FROM image_metadata WHERE image_path = ?",
+                    (image_path,)
+                )
+                exists = cursor.fetchone()
+                
+                if exists:
+                    # Update existing metadata
+                    query_parts = []
+                    params = []
+                    
+                    if rating is not None:
+                        query_parts.append("rating = ?")
+                        params.append(rating)
+                    
+                    if tags is not None:
+                        query_parts.append("tags = ?")
+                        params.append(tags_json)
+                        
+                    if folder is not None:
+                        query_parts.append("folder = ?")
+                        params.append(folder)
+                        
+                    if model is not None:
+                        query_parts.append("model = ?")
+                        params.append(model)
+                    
+                    if query_parts:
+                        query_parts.append("updated_at = ?")
+                        params.append(datetime.datetime.now(datetime.timezone.utc).isoformat())
+                        params.append(image_path)
+                        
+                        query = f"UPDATE image_metadata SET {', '.join(query_parts)} WHERE image_path = ?"
+                        conn.execute(query, params)
+                else:
+                    # Insert new metadata
+                    conn.execute(
+                        """
+                        INSERT INTO image_metadata (image_path, rating, tags, folder, model, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            image_path,
+                            rating,
+                            tags_json,
+                            folder,
+                            model,
+                            datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            datetime.datetime.now(datetime.timezone.utc).isoformat()
+                        )
+                    )
+                    
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Error updating image metadata: {e}")
+            return False
+            
+    def get_image_metadata(self, image_path: str) -> Optional[Dict[str, Any]]:
+        """
+        Get metadata for an image.
+        
+        Args:
+            image_path: Absolute path to the image file
+            
+        Returns:
+            Dict containing metadata or None if not found
+        """
+        try:
+            with self.model.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM image_metadata WHERE image_path = ?",
+                    (image_path,)
+                )
+                row = cursor.fetchone()
+                
+                if row:
+                    data = dict(row)
+                    
+                    # Parse tags JSON
+                    if data.get('tags'):
+                        try:
+                            data['tags'] = json.loads(data['tags'])
+                        except (json.JSONDecodeError, TypeError):
+                            data['tags'] = []
+                    else:
+                        data['tags'] = []
+                        
+                    return data
+                    
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error getting image metadata: {e}")
+            return None
+            
+    def search_images_by_metadata(
+        self,
+        rating: Optional[int] = None,
+        tags: Optional[List[str]] = None,
+        folder: Optional[str] = None,
+        model: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        Search images by metadata criteria.
+        
+        Args:
+            rating: Filter by minimum rating
+            tags: Filter by tags (must contain all specified tags)
+            folder: Filter by folder name
+            model: Filter by model name
+            limit: Maximum number of results
+            offset: Number of results to skip
+            
+        Returns:
+            List of image metadata records
+        """
+        query_parts = ["SELECT * FROM image_metadata WHERE 1=1"]
+        params = []
+        
+        if rating is not None:
+            query_parts.append("AND rating >= ?")
+            params.append(rating)
+        
+        if tags:
+            for tag in tags:
+                query_parts.append("AND tags LIKE ?")
+                params.append(f"%{tag}%")
+        
+        if folder:
+            query_parts.append("AND folder = ?")
+            params.append(folder)
+            
+        if model:
+            query_parts.append("AND model = ?")
+            params.append(model)
+            
+        query_parts.append("ORDER BY created_at DESC LIMIT ? OFFSET ?")
+        params.extend([limit, offset])
+        
+        query = " ".join(query_parts)
+        
+        try:
+            with self.model.get_connection() as conn:
+                cursor = conn.execute(query, params)
+                rows = cursor.fetchall()
+                
+                results = []
+                for row in rows:
+                    data = dict(row)
+                    
+                    # Parse tags JSON
+                    if data.get('tags'):
+                        try:
+                            data['tags'] = json.loads(data['tags'])
+                        except (json.JSONDecodeError, TypeError):
+                            data['tags'] = []
+                    else:
+                        data['tags'] = []
+                        
+                    results.append(data)
+                    
+                return results
+                
+        except Exception as e:
+            self.logger.error(f"Error searching image metadata: {e}")
+            return []
+            
+    def get_unique_folders_and_models(self) -> Dict[str, List[str]]:
+        """
+        Get all unique folders and models from image metadata.
+        
+        Returns:
+            Dict containing 'folders' and 'models' lists
+        """
+        folders = []
+        models = []
+        
+        try:
+            with self.model.get_connection() as conn:
+                cursor = conn.execute("SELECT DISTINCT folder FROM image_metadata WHERE folder IS NOT NULL")
+                folders = [row['folder'] for row in cursor.fetchall() if row['folder']]
+                
+                cursor = conn.execute("SELECT DISTINCT model FROM image_metadata WHERE model IS NOT NULL")
+                models = [row['model'] for row in cursor.fetchall() if row['model']]
+                
+        except Exception as e:
+            self.logger.error(f"Error getting unique folders and models: {e}")
+            
+        return {
+            'folders': sorted(folders),
+            'models': sorted(models)
+        }
