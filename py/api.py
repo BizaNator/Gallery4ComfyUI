@@ -2051,21 +2051,21 @@ class PromptManagerAPI:
                             self.logger.debug(f"Error extracting metadata: {e}")
                     
                     # Filter by model if specified
-                    if model_filter and model and model_filter not in model:
+                    if model_filter and (not model or model_filter not in model):
                         continue
                     
-                    # Filter by rating if specified (would need a database)
-                    if rating_filter and int(rating_filter) > 0:
-                        # Placeholder for rating filter
-                        # In a real implementation, you'd query your rating database
-                        pass
+                    # Filter by rating if specified
+                    if rating_filter and rating_filter.isdigit() and int(rating_filter) > 0:
+                        # Skip images with no rating or rating less than the filter
+                        if not rating or int(rating) < int(rating_filter):
+                            continue
                     
-                    # Filter by tags if specified (would need a database)
-                    if tags:
-                        tags_list = tags.split(',')
-                        # Placeholder for tag filtering
-                        # In a real implementation, you'd query your tags database
-                        pass
+                    # Filter by tags if specified
+                    if tags and tags.strip():
+                        tags_list = [tag.strip().lower() for tag in tags.split(',') if tag.strip()]
+                        # Skip images that don't contain ALL the specified tags
+                        if not image_tags or not all(tag in [t.lower() for t in image_tags] for tag in tags_list):
+                            continue
                     
                     images.append({
                         'id': str(hash(str(media_path))),  # Simple hash for ID
